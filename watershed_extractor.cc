@@ -27,10 +27,12 @@ struct GridPointData {
   int x_, y_, z_, dist_;
   double height_;
 
-  GridPointData(int x, int y, int z, int dist, height)
-      : x_(x), y_(y), z_(z), dist_(dist), height_(height);
+  GridPointData() {}
 
-  bool operator < (const GridPointData &other) {
+  GridPointData(int x, int y, int z, int dist, double height)
+      : x_(x), y_(y), z_(z), dist_(dist), height_(height) {}
+
+  bool operator < (const GridPointData &other) const {
     if (height_ != other.height_) {
       return height_ < other.height_;
     }
@@ -118,15 +120,12 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
 
   calculate_plateau_distance(scalar_field, nx, ny, nz, dist);
 
-  int *queue_x = new int[nx * ny * nz * 2];  // double size for fictitous
-  int *queue_y = new int[nx * ny * nz * 2];
-  int *queue_z = new int[nx * ny * nz * 2];
-
   int count = 0;
   for (int x = 0; x < nx; x++) {
     for (int y = 0; y < ny; y++) {
       for (int z = 0; z < nz; z++) {
-        data_array[count++] = GridPointData(x, y, z, scalar_field[x][y][z]);
+        data_array[count++] = GridPointData(
+            x, y, z, dist[x][y][z], scalar_field[x][y][z]);
       }
     }
   }
@@ -138,103 +137,109 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
       for (int z = 0; z < nz; z++) {
         basin_index[x][y][z] = -1;
         dist_2_valley[x][y][z] = -1;
-        dist[x][y][z] = 0;
       }
     }
   }
 
-  int num_labels = 0, head = 0, tail = -1;
+  int num_labels = 0; 
 
-  for (int curr = 0; curr < nx * ny * nz; ) {
-    double height = data_array[curr].height_;
+  int *queue_x = new int[nx * ny * nz];
+  int *queue_y = new int[nx * ny * nz];
+  int *queue_z = new int[nx * ny * nz];
 
-    int succ = curr + 1;
-    while (succ < nx * ny * nz && data_array[succ].height_ == height) {
-      succ++;
+  for (int i = 0; i < nx * ny * nz; i++) {
+    int x = data_array[i].x_;
+    int y = data_array[i].y_;
+    int z = data_array[i].z_;
+
+    if (basin_index[x][y][z] != -1) {  // a local minima previously covered
+      continue;
     }
 
-    for (int i = curr; i < succ; i++) {
-      int x = data_array[i].x_;
-      int y = data_array[i].y_;
-      int z = data_array[i].z_;
+    if (dist[x][y][z] == -1) {  // local minima
+      int head = 0, tail = 0;
+      queue_x[0] = x;
+      queue_y[0] = y;
+      queue_z[0] = z;
+      basin_index[x][y][z] = num_labels;
+      dist_2_valley[x][y][z] = 0;
 
-      basin_index[x][y][z] = -2;
-
-      bool flag = false;
-      for (int k = 0; k < kConnectivity; k++) {
-        int next_x = x + kDirections[k][0];
-        int next_y = y + kDirections[k][1];
-        int next_z = z + kDirections[k][2];
-
-        if (outside(next_x, next_y, next_z, nx, ny, nz)) {
-          continue;
-        }
-
-        if (basin_index[next_x][next_y][next_z] >= 0) {  // basin or watershed
-          flag = true;
-          break;
-        }
-      }
-
-      if (flag) {
-        dist[x][y][z] = 1;
-        tail++;
-        queue_x[tail] = x;
-        queue_y[tail] = y;
-        queue_z[tail] = z;
-      }
-    }
-
-    int curr_dist = 1;
-    tail++;
-    queue_x[tail] = -1;
-
-    while (true) {
-      int x = queue_x[head];
-      int y = queue_y[head];
-      int z = queue_z[head];
-      head++;
-
-      if (x == -1) {
-        if (head > tail) {
-          break;
-        } else {
-          tail++;
-          queue_x[tail] = -1;
-          curr_dist++;
-        }
-        x = queue_x[head];
-        y = queue_y[head];
-        z = queue_z[head];
+      while (head <= tail) {
+        int curr_x = queue_x[head];
+        int curr_y = queue_y[head];
+        int curr_z = queue_z[head];
         head++;
+
+        for (int k = 0; k < kConnectivity; k++) {
+          int next_x = curr_x + kDirections[k][0];
+          int next_y = curr_y + kDirections[k][1];
+          int next_z = curr_z + kDirections[k][2];
+
+          if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+            continue;
+          }
+
+          if (dist[next_x][next_y][next_z] != -1) {  // not in local minima
+            continue;
+          }
+
+          if (basin_index[next_x][next_y][next_z] == -1) {  // not covered yet
+            basin_index[next_x][next_y][next_z] = num_labels;
+            tail++;
+            queue_x[tail] = next_x;
+            queue_y[tail] = next_y;
+            queue_z[tail] = next_z;
+            dist_2_valley[next_x][next_y][next_z] = 0;
+          }
+        }
       }
 
-      for (int k = 0; k < kConnectivity; k++) {
-        int next_x = x + kDirections[k][0];
-        int next_y = y + kDirections[k][1];
-        int next_z = z + kDirections[k][2];
+      num_labels++;
+      continue;
+    }
 
-        if (outside(next_x, next_y, next_z, nx, ny, nz)) {
-          continue;
-        }
+    int label = -1;
+    int min_dist_2_valley = -1;
 
-        if (dist[next_x][next_y][next_z] < curr_dist
-            && basin_index[next_x][next_y][next_z] >= 0) {
-          if (dist[next_x][next_y][next_z] != curr_dist - 1) {
-            report_error("Found unexpected dist\n");
-          }
+    for (int k = 0; k < kConnectivity; k++) {
+      int next_x = x + kDirections[k][0];
+      int next_y = y + kDirections[k][1];
+      int next_z = z + kDirections[k][2];
 
-          if (basin_index[next_x][next_y][next_z] > 0) {  // non-ridge
-            if (basin_index[x][y][z] <= 0) {  // ridge or not assigned
-              basin_index[x][y][z] = basin_index[next_x][next_y][next_z];
-            }
-          }
-        }
+      if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+        continue;
+      }
+
+      if (basin_index[next_x][next_y][next_z] == -1) {
+        continue;
+      }
+
+      if (scalar_field[next_x][next_y][next_z] > data_array[i].height_
+          || (scalar_field[next_x][next_y][next_z] == data_array[i].height_
+          && dist[next_x][next_y][next_z] > data_array[i].dist_)) {
+        report_error("Incorrect order found.\n");
+      }
+
+      if (scalar_field[next_x][next_y][next_z] == data_array[i].height_
+          && dist[next_x][next_y][next_z] == data_array[i].dist_) {
+        continue;
+      }
+
+      if (label == -1) {
+        label = basin_index[next_x][next_y][next_z];
+        min_dist_2_valley = dist_2_valley[next_x][next_y][next_z];
+      } else if (label != basin_index[next_x][next_y][next_z]) {
+        label = -2;
+      } else if (min_dist_2_valley > dist_2_valley[next_x][next_y][next_z]) {
+        min_dist_2_valley = dist_2_valley[next_x][next_y][next_z];
       }
     }
-  }
 
-  
+    if (label >= 0) {  // belong to a basin
+      basin_index[x][y][z] = label;
+      dist_2_valley[x][y][z] = min_dist_2_valley + 1;
+    }
+  }
 
   delete [] data_array;
   delete [] queue_x;
@@ -289,6 +294,31 @@ void WatershedExtractor::extract_watershed(
 
   watershed_process(scalar_field_array, nx, ny, nz,
                     basin_index_array, dist_2_valley_array);
+
+  vtkSmartPointer<vtkIntArray> label_array =
+      vtkSmartPointer<vtkIntArray>::New();
+
+  vtkSmartPointer<vtkIntArray> dist_array =
+      vtkSmartPointer<vtkIntArray>::New();
+
+  label_array->SetNumberOfComponents(1);
+  dist_array->SetNumberOfComponents(1);
+
+  label_array->SetNumberOfTuples(nx * ny * nz);
+  dist_array->SetNumberOfTuples(nx * ny * nz);
+
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        int index = (z * ny + y) * nx + x;
+        label_array->SetTuple1(index, basin_index_array[x][y][z]);
+        dist_array->SetTuple1(index, dist_2_valley_array[x][y][z]);
+      }
+    }
+  }
+
+  (*basin_index)->GetPointData()->SetScalars(label_array);
+  (*dist_2_valley)->GetPointData()->SetScalars(dist_array);
 
   delete_3d_array(basin_index_array);
   delete_3d_array(dist_2_valley_array);
