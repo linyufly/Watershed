@@ -24,14 +24,18 @@ const int kDirections[6][3] = {
     {1, 0, 0}, {-1, 0, 0}};
 
 struct GridPointData {
-  int x_, y_, z_;
+  int x_, y_, z_, dist_;
   double height_;
 
-  GridPointData(int x, int y, int z, height)
-      : x_(x), y_(y), z_(z), height_(height);
+  GridPointData(int x, int y, int z, int dist, height)
+      : x_(x), y_(y), z_(z), dist_(dist), height_(height);
 
   bool operator < (const GridPointData &other) {
-    return height_ < other.height_;
+    if (height_ != other.height_) {
+      return height_ < other.height_;
+    }
+
+    return dist_ < other.dist_;
   }
 };
 
@@ -39,10 +43,81 @@ bool outside(int x, int y, int z, int nx, int ny, int nz) {
   return x < 0 || y < 0 || z < 0 || x >= nx || y >= ny || z >= nz;
 }
 
+void calculate_plateau_distance(double ***scalar_field,
+                                int nx, int ny, int nz, int ***dist) {
+  int *queue_x = new int[nx * ny * nz];
+  int *queue_y = new int[nx * ny * nz];
+  int *queue_z = new int[nx * ny * nz];
+
+  int head = 0, tail = -1;
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        dist[x][y][z] = -1;
+
+        for (int k = 0; k < kConnectivity; k++) {
+          int next_x = x + kDirections[k][0];
+          int next_y = y + kDirections[k][1];
+          int next_z = z + kDirections[k][2];
+
+          if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+            continue;
+          }
+
+          if (scalar_field[next_x][next_y][next_z] < scalar_field[x][y][z]) {
+            dist[x][y][z] = 0;
+            break;
+          }
+        }
+
+        if (dist[x][y][z] == 0) {
+          tail++;
+          queue_x[tail] = x;
+          queue_y[tail] = y;
+          queue_z[tail] = z;
+        }
+      }
+    }
+  }
+
+  while (head <= tail) {
+    int x = queue_x[head];
+    int y = queue_y[head];
+    int z = queue_z[head];
+    head++;
+
+    for (int k = 0; k < kConnectivity; k++) {
+      int next_x = x + kDirections[k][0];
+      int next_y = y + kDirections[k][1];
+      int next_z = z + kDirections[k][2];
+
+      if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+        continue;
+      }
+
+      if (dist[next_x][next_y][next_z] == -1
+          && scalar_field[next_x][next_y][next_z] == scalar_field[x][y][z]) {
+        dist[next_x][next_y][next_z] = dist[x][y][z] + 1;
+        tail++;
+        queue_x[tail] = next_x;
+        queue_y[tail] = next_y;
+        queue_z[tail] = next_z;
+      }
+    }
+  }
+
+  delete [] queue_x;
+  delete [] queue_y;
+  delete [] queue_z;
+}
+
 void watershed_process(double ***scalar_field, int nx, int ny, int nz,
                        int ***basin_index, int ***dist_2_valley) {
   GridPointData *data_array = new GridPointData[nx * ny * nz];
   int ***dist = create_3d_array<int>(nx, ny, nz);  // plateau distance
+
+  calculate_plateau_distance(scalar_field, nx, ny, nz, dist);
+
   int *queue_x = new int[nx * ny * nz * 2];  // double size for fictitous
   int *queue_y = new int[nx * ny * nz * 2];
   int *queue_z = new int[nx * ny * nz * 2];
