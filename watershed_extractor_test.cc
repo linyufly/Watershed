@@ -15,7 +15,9 @@
 
 #include <iostream>
 
-const char *kScalarFile = "data/sphere_ftle.vtk";
+// const char *kScalarFile = "data/one_sphere_ftle.vtk";
+// const char *kScalarFile = "data/sphere_ftle.vtk";
+const char *kScalarFile = "data/gyre_half.vtk";
 const char *kBasinFile = "basin_index.vtk";
 const char *kDistFile = "dist_2_valley.vtk";
 

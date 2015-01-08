@@ -4,8 +4,8 @@
 
 #include "util.h"
 
-#include <set>
 #include <algorithm>
+#include <map>
 
 #include <vtkDoubleArray.h>
 #include <vtkIntArray.h>
@@ -113,12 +113,109 @@ void calculate_plateau_distance(double ***scalar_field,
   delete [] queue_z;
 }
 
+void check_waterproof(int ***basin_index, int nx, int ny, int nz) {
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        if (basin_index[x][y][z] != -1) {
+          for (int k = 0; k < kConnectivity; k++) {
+            int next_x = x + kDirections[k][0];
+            int next_y = y + kDirections[k][1];
+            int next_z = z + kDirections[k][2];
+
+            if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+              continue;
+            }
+
+            if (basin_index[next_x][next_y][next_z] != -1
+                && basin_index[next_x][next_y][next_z]
+                   != basin_index[x][y][z]) {
+              printf("Found non-waterproof.\n");
+              return;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  printf("The watershed result is waterproof.\n");
+}
+
+void remove_seams(int ***basin_index, int nx, int ny, int nz) {
+  while (true) {
+    bool flag = false;
+
+    for (int x = 0; x < nx; x++) {
+      for (int y = 0; y < ny; y++) {
+        for (int z = 0; z < nz; z++) {
+          if (basin_index[x][y][z] == -1) {
+            std::map<int, int> labels;
+            for (int k = 0; k < kConnectivity; k++) {
+              int next_x = x + kDirections[k][0];
+              int next_y = y + kDirections[k][1];
+              int next_z = z + kDirections[k][2];
+
+              if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+                continue;
+              }
+
+              if (basin_index[next_x][next_y][next_z] >= 0) {
+                labels[basin_index[next_x][next_y][next_z]]++;
+              }
+            }
+            if (labels.empty()) {
+              continue;
+            }
+            int max_occ = 0, label = -1;
+            for (std::map<int, int>::iterator itr = labels.begin();
+                itr != labels.end(); itr++) {
+              if (itr->second > max_occ) {
+                max_occ = itr->second;
+                label = itr->first;
+              }
+            }
+            basin_index[x][y][z] = -2 - label;
+            flag = true;
+          }
+        }
+      }
+    }
+
+    if (!flag) {
+      break;
+    }
+
+    for (int x = 0; x < nx; x++) {
+      for (int y = 0; y < ny; y++) {
+        for (int z = 0; z < nz; z++) {
+          if (basin_index[x][y][z] < -1) {
+            basin_index[x][y][z] = -(basin_index[x][y][z] + 2);
+          }
+        }
+      }
+    }
+  }
+}
+
 void watershed_process(double ***scalar_field, int nx, int ny, int nz,
                        int ***basin_index, int ***dist_2_valley) {
   GridPointData *data_array = new GridPointData[nx * ny * nz];
   int ***dist = create_3d_array<int>(nx, ny, nz);  // plateau distance
 
   calculate_plateau_distance(scalar_field, nx, ny, nz, dist);
+
+  /// DEBUG ///
+  // int mini_cnt = 0;
+  // for (int x = 0; x < nx; x++) {
+  //   for (int y = 0; y < ny; y++) {
+  //     for (int z = 0; z < nz; z++) {
+  //       if (dist[x][y][z] == -1) {
+  //         printf("%d# minima: %d %d %d, height: %.20lf\n", ++mini_cnt, x, y, z, scalar_field[x][y][z]);
+  //       }
+  //     }
+  //   }
+  // }
 
   int count = 0;
   for (int x = 0; x < nx; x++) {
@@ -130,7 +227,7 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
     }
   }
 
-  std::sort(data_array, data_array + nx * ny * nz);
+  std::sort(data_array, data_array + count);
 
   for (int x = 0; x < nx; x++) {
     for (int y = 0; y < ny; y++) {
@@ -157,6 +254,10 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
     }
 
     if (dist[x][y][z] == -1) {  // local minima
+      /// DEBUG ///
+      // printf("label #%d: %d, %d, %d: %.20lf\n",
+      //     num_labels, x, y, z, data_array[i].height_);
+
       int head = 0, tail = 0;
       queue_x[0] = x;
       queue_y[0] = y;
@@ -240,6 +341,11 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
       dist_2_valley[x][y][z] = min_dist_2_valley + 1;
     }
   }
+
+  /// DEBUG ///
+  check_waterproof(basin_index, nx, ny, nz);  // not necessarily hold
+
+  remove_seams(basin_index, nx, ny, nz);
 
   delete [] data_array;
   delete [] queue_x;
