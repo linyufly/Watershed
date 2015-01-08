@@ -142,7 +142,8 @@ void check_waterproof(int ***basin_index, int nx, int ny, int nz) {
   printf("The watershed result is waterproof.\n");
 }
 
-void remove_seams(int ***basin_index, int nx, int ny, int nz) {
+void remove_seams(double ***scalar_field, int nx, int ny, int nz,
+                  int ***basin_index, int ***dist_2_valley) {
   while (true) {
     bool flag = false;
 
@@ -157,6 +158,11 @@ void remove_seams(int ***basin_index, int nx, int ny, int nz) {
               int next_z = z + kDirections[k][2];
 
               if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+                continue;
+              }
+
+              if (scalar_field[next_x][next_y][next_z]
+                  > scalar_field[x][y][z]) {
                 continue;
               }
 
@@ -176,6 +182,33 @@ void remove_seams(int ***basin_index, int nx, int ny, int nz) {
               }
             }
             basin_index[x][y][z] = -2 - label;
+
+            for (int k = 0; k < kConnectivity; k++) {
+              int next_x = x + kDirections[k][0];
+              int next_y = y + kDirections[k][1];
+              int next_z = z + kDirections[k][2];
+
+              if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+                continue;
+              }
+
+              if (scalar_field[next_x][next_y][next_z]
+                  > scalar_field[x][y][z]) {
+                continue;
+              }
+
+              if (basin_index[next_x][next_y][next_z] != label) {
+                continue;
+              }
+
+              if (dist_2_valley[x][y][z] == -1
+                  || dist_2_valley[x][y][z]
+                     > dist_2_valley[next_x][next_y][next_z] + 1) {
+                dist_2_valley[x][y][z] =
+                    dist_2_valley[next_x][next_y][next_z] + 1;
+              }
+            }
+
             flag = true;
           }
         }
@@ -345,7 +378,7 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
   /// DEBUG ///
   check_waterproof(basin_index, nx, ny, nz);  // not necessarily hold
 
-  remove_seams(basin_index, nx, ny, nz);
+  remove_seams(scalar_field, nx, ny, nz, basin_index, dist_2_valley);
 
   delete [] data_array;
   delete [] queue_x;
