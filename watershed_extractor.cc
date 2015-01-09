@@ -376,9 +376,9 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
   }
 
   /// DEBUG ///
-  check_waterproof(basin_index, nx, ny, nz);  // not necessarily hold
+  // check_waterproof(basin_index, nx, ny, nz);  // not necessarily hold
 
-  remove_seams(scalar_field, nx, ny, nz, basin_index, dist_2_valley);
+  // remove_seams(scalar_field, nx, ny, nz, basin_index, dist_2_valley);
 
   delete [] data_array;
   delete [] queue_x;
@@ -388,6 +388,43 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
   delete_3d_array(dist);
 }
 
+}
+
+void WatershedExtractor::laplacian_smoothing(
+    double ***scalar_field, int nx, int ny, int nz) {
+  double ***work_field = create_3d_array<double>(nx, ny, nz);
+
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        double sum = 0.0;
+        int count = 0;
+        for (int k = 0; k < kConnectivity; k++) {
+          int next_x = x + kDirections[k][0];
+          int next_y = y + kDirections[k][1];
+          int next_z = z + kDirections[k][2];
+          if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+            continue;
+          }
+
+          count++;
+          sum += scalar_field[next_x][next_y][next_z];
+        }
+
+        work_field[x][y][z] = sum / count;
+      }
+    }
+  }
+
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        scalar_field[x][y][z] = work_field[x][y][z];
+      }
+    }
+  }
+
+  delete_3d_array(work_field);
 }
 
 void WatershedExtractor::extract_watershed(
