@@ -9,6 +9,7 @@ class vtkStructuredPoints;
 
 class WatershedExtractor {
  public:
+  // This method conducts one iteration of Laplacian smoothing.
   void laplacian_smoothing(double ***scalar_field, int nx, int ny, int nz);
 
   // basin_index stores the index of regions, starting from 0.
@@ -18,9 +19,13 @@ class WatershedExtractor {
                          vtkStructuredPoints **dist_2_valley,
                          std::vector<double> *valley_height);
 
+  // quotient_threshold is for the quotient of height difference over distance
+  // to valley.
   void filter_watershed(vtkStructuredPoints *scalar_field,
                         vtkStructuredPoints *basin_index,
                         vtkStructuredPoints *dist_2_valley,
+                        const std::vector<double> &valley_height,
+                        double quotient_threshold,
                         vtkStructuredPoints **filtered_index);
 };
 

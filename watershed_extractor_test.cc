@@ -19,14 +19,15 @@
 
 // const char *kScalarFile = "data/one_sphere_ftle.vtk";
 // const char *kScalarFile = "data/sphere_ftle.vtk";
-const char *kScalarFile = "data/gyre_half.vtk";
-// const char *kScalarFile = "smoothed_scalar.vtk";
+// const char *kScalarFile = "data/gyre_half.vtk";
+const char *kScalarFile = "smoothed_scalar.vtk";
 const char *kBasinFile = "basin_index.vtk";
 const char *kDistFile = "dist_2_valley.vtk";
 const char *kScalarToSmoothFile = "data/gyre_half.vtk";
 const char *kSmoothedScalarFile = "smoothed_scalar.vtk";
+const char *kFilteredBasinFile = "filtered_basin.vtk";
 
-const int kNumberOfSmoothing = 80;
+const int kNumberOfSmoothing = 5;
 
 void extract_watershed_test() {
   printf("extract_watershed_test {\n");
@@ -130,9 +131,55 @@ void laplacian_smoothing_test() {
   printf("} laplacian_smoothing_test\n\n");
 }
 
+void filter_watershed_test() {
+  printf("filter_watershed_test {\n");
+
+  vtkSmartPointer<vtkStructuredPointsReader> reader =
+      vtkSmartPointer<vtkStructuredPointsReader>::New();
+
+  reader->SetFileName(kScalarFile);
+  reader->Update();
+
+  vtkSmartPointer<vtkStructuredPoints> scalar_field =
+      vtkSmartPointer<vtkStructuredPoints>::New();
+  scalar_field->ShallowCopy(reader->GetOutput());
+
+  WatershedExtractor extractor;
+  vtkStructuredPoints *basin_index = NULL, *dist_2_valley = NULL;
+  std::vector<double> valley_height;
+  extractor.extract_watershed(
+      scalar_field, &basin_index, &dist_2_valley, &valley_height);
+
+  vtkStructuredPoints *filtered_index = NULL;
+  extractor.filter_watershed(scalar_field, basin_index, dist_2_valley,
+                             valley_height, 0.0001, &filtered_index);
+
+  vtkSmartPointer<vtkStructuredPointsWriter> writer =
+    vtkSmartPointer<vtkStructuredPointsWriter>::New();
+
+  writer->SetFileName(kFilteredBasinFile);
+  writer->SetInputData(filtered_index);
+  writer->Write();
+
+  if (basin_index) {
+    basin_index->Delete();
+  }
+
+  if (dist_2_valley) {
+    dist_2_valley->Delete();
+  }
+
+  if (filtered_index) {
+    filtered_index->Delete();
+  }
+
+  printf("} filter_watershed_test\n\n");
+}
+
 int main() {
   extract_watershed_test();
   laplacian_smoothing_test();
+  filter_watershed_test();
 
   return 0;
 }
