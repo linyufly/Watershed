@@ -43,7 +43,9 @@ void extract_watershed_test() {
 
   WatershedExtractor extractor;
   vtkStructuredPoints *basin_index = NULL, *dist_2_valley = NULL;
-  extractor.extract_watershed(scalar_field, &basin_index, &dist_2_valley);
+  std::vector<double> valley_height;
+  extractor.extract_watershed(
+      scalar_field, &basin_index, &dist_2_valley, &valley_height);
 
   vtkSmartPointer<vtkStructuredPointsWriter> writer =
     vtkSmartPointer<vtkStructuredPointsWriter>::New();

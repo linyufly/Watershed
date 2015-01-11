@@ -3,6 +3,8 @@
 #ifndef WATERSHED_EXTRACTOR_H_
 #define WATERSHED_EXTRACTOR_H_
 
+#include <vector>
+
 class vtkStructuredPoints;
 
 class WatershedExtractor {
@@ -13,7 +15,8 @@ class WatershedExtractor {
   // dist_2_valley stores the steps from the valley (local minima).
   void extract_watershed(vtkStructuredPoints *scalar_field,
                          vtkStructuredPoints **basin_index,
-                         vtkStructuredPoints **dist_2_valley);
+                         vtkStructuredPoints **dist_2_valley,
+                         std::vector<double> *valley_height);
 
   void filter_watershed(vtkStructuredPoints *scalar_field,
                         vtkStructuredPoints *basin_index,

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <map>
+#include <vector>
 
 #include <vtkDoubleArray.h>
 #include <vtkIntArray.h>
@@ -253,7 +254,8 @@ void shuffle_labels(int nx, int ny, int nz, int num_labels,
 }
 
 void watershed_process(double ***scalar_field, int nx, int ny, int nz,
-                       int ***basin_index, int ***dist_2_valley) {
+                       int ***basin_index, int ***dist_2_valley,
+                       std::vector<double> *valley_height) {
   GridPointData *data_array = new GridPointData[nx * ny * nz];
   int ***dist = create_3d_array<int>(nx, ny, nz);  // plateau distance
 
@@ -298,6 +300,8 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
   int *queue_y = new int[nx * ny * nz];
   int *queue_z = new int[nx * ny * nz];
 
+  valley_height->clear();
+
   for (int i = 0; i < nx * ny * nz; i++) {
     int x = data_array[i].x_;
     int y = data_array[i].y_;
@@ -318,6 +322,7 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
       queue_z[0] = z;
       basin_index[x][y][z] = num_labels;
       dist_2_valley[x][y][z] = 0;
+      valley_height->push_back(data_array[i].height_);
 
       while (head <= tail) {
         int curr_x = queue_x[head];
@@ -411,6 +416,18 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
   delete_3d_array(dist);
 }
 
+int find_root(int node, int *father) {
+  if (father[node] == node) {
+    return node;
+  }
+
+  return father[node] = find_root(father[node], father);
+}
+
+void merge(int node_1, int node_2, int *father) {
+  father[find_root(node_1, father)] = find_root(node_2, father);
+}
+
 }
 
 void WatershedExtractor::laplacian_smoothing(
@@ -453,7 +470,8 @@ void WatershedExtractor::laplacian_smoothing(
 void WatershedExtractor::extract_watershed(
     vtkStructuredPoints *scalar_field,
     vtkStructuredPoints **basin_index,
-    vtkStructuredPoints **dist_2_valley) {
+    vtkStructuredPoints **dist_2_valley,
+    std::vector<double> *valley_height) {
   int dimensions[3];
   double spacing[3], origin[3];
   scalar_field->GetDimensions(dimensions);
@@ -492,7 +510,8 @@ void WatershedExtractor::extract_watershed(
   }
 
   watershed_process(scalar_field_array, nx, ny, nz,
-                    basin_index_array, dist_2_valley_array);
+                    basin_index_array, dist_2_valley_array,
+                    valley_height);
 
   vtkSmartPointer<vtkIntArray> label_array =
       vtkSmartPointer<vtkIntArray>::New();
@@ -563,8 +582,14 @@ void WatershedExtractor::filter_watershed(
 
   num_labels++;
 
-   
+  int *father = new int[num_labels];
+  for (int i = 0; i < num_labels; i++) {
+    father[i] = i;
+  }
 
+
+
+  delete [] father;
   delete_3d_array(scalar_field_array);
   delete_3d_array(basin_index_array);
   delete_3d_array(dist_2_valley_array);
