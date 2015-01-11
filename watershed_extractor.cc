@@ -231,6 +231,27 @@ void remove_seams(double ***scalar_field, int nx, int ny, int nz,
   }
 }
 
+void shuffle_labels(int nx, int ny, int nz, int num_labels,
+                    int ***basin_index) {
+  int *permutations = new int[num_labels];
+
+  for (int i = 0; i < num_labels; i++) {
+    permutations[i] = i;
+  }
+
+  std::random_shuffle(permutations, permutations + num_labels);
+
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        basin_index[x][y][z] = permutations[basin_index[x][y][z]];
+      }
+    }
+  }
+
+  delete [] permutations;
+}
+
 void watershed_process(double ***scalar_field, int nx, int ny, int nz,
                        int ***basin_index, int ***dist_2_valley) {
   GridPointData *data_array = new GridPointData[nx * ny * nz];
@@ -378,7 +399,9 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
   /// DEBUG ///
   // check_waterproof(basin_index, nx, ny, nz);  // not necessarily hold
 
-  // remove_seams(scalar_field, nx, ny, nz, basin_index, dist_2_valley);
+  remove_seams(scalar_field, nx, ny, nz, basin_index, dist_2_valley);
+
+  shuffle_labels(nx, ny, nz, num_labels, basin_index);
 
   delete [] data_array;
   delete [] queue_x;
@@ -500,3 +523,50 @@ void WatershedExtractor::extract_watershed(
   delete_3d_array(dist_2_valley_array);
   delete_3d_array(scalar_field_array);
 }
+
+void WatershedExtractor::filter_watershed(
+    vtkStructuredPoints *scalar_field,
+    vtkStructuredPoints *basin_index,
+    vtkStructuredPoints *dist_2_valley,
+    vtkStructuredPoints **filtered_index) {
+  int dimensions[3];
+  scalar_field->GetDimensions(dimensions);
+  int nx = dimensions[0];
+  int ny = dimensions[1];
+  int nz = dimensions[2];
+
+  double ***scalar_field_array = create_3d_array<double>(nx, ny, nz);
+  int ***basin_index_array = create_3d_array<int>(nx, ny, nz);
+  int ***dist_2_valley_array = create_3d_array<int>(nx, ny, nz);
+
+  int num_labels = -1;
+
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        int index = (z * ny + y) * nx + x;
+        scalar_field_array[x][y][z] = scalar_field->GetPointData()
+                                                  ->GetScalars()
+                                                  ->GetTuple1(index);
+        basin_index_array[x][y][z] = basin_index->GetPointData()
+                                                ->GetScalars()
+                                                ->GetTuple1(index);
+        dist_2_valley_array[x][y][z] = dist_2_valley->GetPointData()
+                                                    ->GetScalars()
+                                                    ->GetTuple1(index);
+        if (scalar_field_array[x][y][z] > num_labels) {
+          num_labels = scalar_field_array[x][y][z];
+        }
+      }
+    }
+  }
+
+  num_labels++;
+
+   
+
+  delete_3d_array(scalar_field_array);
+  delete_3d_array(basin_index_array);
+  delete_3d_array(dist_2_valley_array);
+}
+

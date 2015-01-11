@@ -14,6 +14,11 @@ class WatershedExtractor {
   void extract_watershed(vtkStructuredPoints *scalar_field,
                          vtkStructuredPoints **basin_index,
                          vtkStructuredPoints **dist_2_valley);
+
+  void filter_watershed(vtkStructuredPoints *scalar_field,
+                        vtkStructuredPoints *basin_index,
+                        vtkStructuredPoints *dist_2_valley,
+                        vtkStructuredPoints **filtered_index);
 };
 
 #endif  // WATERSHED_EXTRACTOR_H_
