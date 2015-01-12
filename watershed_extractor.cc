@@ -495,7 +495,7 @@ void merge_watershed(double ***scalar_field,
           }
 
           /// DEBUG ///
-          printf("x, y, z = %d, %d, %d, next_xyz = %d, %d, %d\n", x, y, z, next_x, next_y, next_z);
+          // printf("x, y, z = %d, %d, %d, next_xyz = %d, %d, %d\n", x, y, z, next_x, next_y, next_z);
 
           // if (dist_2_valley[x][y][z] == 0) {
           //   output_basin(scalar_field, basin_index, dist_2_valley, x, y, z,
@@ -532,11 +532,11 @@ void merge_watershed(double ***scalar_field,
               valley_height[basin_index[next_x][next_y][next_z]]);
 
           if (ridge_height - higher_valley_height < height_threshold) {
-            printf("ridge_height = %lf, higher_valley_height = %lf\n", ridge_height, higher_valley_height);
-            printf("scalar_field[x][y][z] = %lf, valley_1 = %lf\n",
-                   scalar_field[x][y][z], valley_height[basin_index[x][y][z]]);
-            printf("scalar_field[next_x][next_y][next_z] = %lf, valley_2 = %lf\n",
-                   scalar_field[next_x][next_y][next_z], valley_height[basin_index[next_x][next_y][next_z]]);
+            // printf("ridge_height = %lf, higher_valley_height = %lf\n", ridge_height, higher_valley_height);
+            // printf("scalar_field[x][y][z] = %lf, valley_1 = %lf\n",
+            //        scalar_field[x][y][z], valley_height[basin_index[x][y][z]]);
+            // printf("scalar_field[next_x][next_y][next_z] = %lf, valley_2 = %lf\n",
+            //        scalar_field[next_x][next_y][next_z], valley_height[basin_index[next_x][next_y][next_z]]);
             merge(basin_index[x][y][z], basin_index[next_x][next_y][next_z],
                   father);
           }
