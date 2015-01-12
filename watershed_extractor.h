@@ -25,6 +25,7 @@ class WatershedExtractor {
                         vtkStructuredPoints *basin_index,
                         vtkStructuredPoints *dist_2_valley,
                         const std::vector<double> &valley_height,
+                        double height_threshold,
                         double quotient_threshold,
                         vtkStructuredPoints **filtered_index);
 };

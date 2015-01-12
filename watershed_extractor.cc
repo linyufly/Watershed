@@ -17,12 +17,19 @@
 
 namespace {
 
-const int kConnectivity = 6;
+const int kConnectivity = 26;
 
-const int kDirections[6][3] = {
+const int kDirections[26][3] = {
     {0, 0, 1}, {0, 0, -1},
     {0, 1, 0}, {0, -1, 0},
-    {1, 0, 0}, {-1, 0, 0}};
+    {1, 0, 0}, {-1, 0, 0},
+
+    {0, 1, 1}, {0, 1, -1}, {0, -1, 1}, {0, -1, -1},
+    {1, 0, 1}, {1, 0, -1}, {-1, 0, 1}, {-1, 0, -1},
+    {1, 1, 0}, {1, -1, 0}, {-1, 1, 0}, {-1, -1, 0},
+
+    {1, 1, 1}, {1, 1, -1}, {1, -1, 1}, {1, -1, -1},
+    {-1, 1, 1}, {-1, 1, -1}, {-1, -1, 1}, {-1, -1, -1}};
 
 struct GridPointData {
   int x_, y_, z_, dist_;
@@ -465,6 +472,7 @@ void merge_watershed(double ***scalar_field,
                      int ***dist_2_valley,
                      int nx, int ny, int nz,
                      const std::vector<double> &valley_height,
+                     double height_threshold,
                      double quotient_threshold,
                      int *father) {
   /// DEBUG ///
@@ -510,27 +518,28 @@ void merge_watershed(double ***scalar_field,
               (scalar_field[next_x][next_y][next_z] - valley_height[basin_index[x][y][z]])
               / (dist_2_valley[x][y][z] + 1);
 
-          if (quotient_1 < quotient_threshold
-              || quotient_2 < quotient_threshold) {
+          // if (quotient_1 < quotient_threshold
+          //     || quotient_2 < quotient_threshold) {
+          //   merge(basin_index[x][y][z], basin_index[next_x][next_y][next_z],
+          //         father);
+          //   continue;
+          // }
+
+          double ridge_height = std::max(scalar_field[x][y][z],
+                                         scalar_field[next_x][next_y][next_z]);
+          double higher_valley_height = std::max(
+              valley_height[basin_index[x][y][z]],
+              valley_height[basin_index[next_x][next_y][next_z]]);
+
+          if (ridge_height - higher_valley_height < height_threshold) {
+            printf("ridge_height = %lf, higher_valley_height = %lf\n", ridge_height, higher_valley_height);
+            printf("scalar_field[x][y][z] = %lf, valley_1 = %lf\n",
+                   scalar_field[x][y][z], valley_height[basin_index[x][y][z]]);
+            printf("scalar_field[next_x][next_y][next_z] = %lf, valley_2 = %lf\n",
+                   scalar_field[next_x][next_y][next_z], valley_height[basin_index[next_x][next_y][next_z]]);
             merge(basin_index[x][y][z], basin_index[next_x][next_y][next_z],
                   father);
           }
-
-          // double ridge_height = std::max(scalar_field[x][y][z],
-          //                                scalar_field[next_x][next_y][next_z]);
-          // double higher_valley_height = std::max(
-          //     valley_height[basin_index[x][y][z]],
-          //     valley_height[basin_index[next_x][next_y][next_z]]);
-
-          // if (ridge_height - higher_valley_height < quotient_threshold) {
-          //   printf("ridge_height = %lf, higher_valley_height = %lf\n", ridge_height, higher_valley_height);
-          //   printf("scalar_field[x][y][z] = %lf, valley_1 = %lf\n",
-          //          scalar_field[x][y][z], valley_height[basin_index[x][y][z]]);
-          //   printf("scalar_field[next_x][next_y][next_z] = %lf, valley_2 = %lf\n",
-          //          scalar_field[next_x][next_y][next_z], valley_height[basin_index[next_x][next_y][next_z]]);
-          //   merge(basin_index[x][y][z], basin_index[next_x][next_y][next_z],
-          //         father);
-          // }
         }
       }
     }
@@ -657,6 +666,7 @@ void WatershedExtractor::filter_watershed(
     vtkStructuredPoints *basin_index,
     vtkStructuredPoints *dist_2_valley,
     const std::vector<double> &valley_height,
+    double height_threshold,
     double quotient_threshold,
     vtkStructuredPoints **filtered_index) {
   int dimensions[3];
@@ -703,7 +713,7 @@ void WatershedExtractor::filter_watershed(
   printf("before merge_watershed\n");
 
   merge_watershed(scalar_field_array, basin_index_array, dist_2_valley_array,
-                  nx, ny, nz, valley_height, quotient_threshold, father);
+                  nx, ny, nz, valley_height, height_threshold, quotient_threshold, father);
 
   /// DEBUG ///
   printf("after merge_watershed\n");
