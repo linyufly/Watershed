@@ -17,7 +17,7 @@
 
 namespace {
 
-const int kConnectivity = 26;
+const int kConnectivity = 6;
 
 const int kDirections[26][3] = {
     {0, 0, 1}, {0, 0, -1},
@@ -327,6 +327,29 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
       continue;
     }
 
+    /// DEBUG ///
+    // bool debug = false;
+    // if (x == 76 && y == 93 && z == 105) {
+    //   debug = true;
+    // }
+
+    /// DEBUG ///
+    // if (debug) {
+    //   printf("dist[%d][%d][%d] = %d\n", x, y, z, dist[x][y][z]);
+
+    //   for (int k = 0; k < kConnectivity; k++) {
+    //     int next_x = x + kDirections[k][0];
+    //     int next_y = y + kDirections[k][1];
+    //     int next_z = z + kDirections[k][2];
+    //     if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+    //       continue;
+    //     }
+
+    //     printf("scalar_field[%d][%d][%d] = %lf\n",
+    //            next_x, next_y, next_z, scalar_field[next_x][next_y][next_z]);
+    //   }
+    // }
+
     if (dist[x][y][z] == -1) {  // local minima
       /// DEBUG ///
       // printf("label #%d: %d, %d, %d: %.20lf\n",
@@ -339,6 +362,9 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
       basin_index[x][y][z] = num_labels;
       dist_2_valley[x][y][z] = 0;
       valley_height->push_back(data_array[i].height_);
+
+      /// DEBUG ///
+      // printf("%d %d %d: %lf\n", x, y, z, data_array[i].height_);
 
       while (head <= tail) {
         int curr_x = queue_x[head];
@@ -366,6 +392,9 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
             queue_y[tail] = next_y;
             queue_z[tail] = next_z;
             dist_2_valley[next_x][next_y][next_z] = 0;
+
+            /// DEBUG ///
+            // printf("%d %d %d\n", next_x, next_y, next_z);
           }
         }
       }

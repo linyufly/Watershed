@@ -20,12 +20,14 @@
 // const char *kScalarFile = "data/one_sphere_ftle.vtk";
 // const char *kScalarFile = "data/sphere_ftle.vtk";
 // const char *kScalarFile = "data/gyre_half.vtk";
-const char *kScalarFile = "smoothed_scalar.vtk";
+// const char *kScalarFile = "smoothed_scalar.vtk";
+const char *kScalarFile = "../WatershedSurface/data/sphere_ftle.vtk";
 const char *kBasinFile = "basin_index.vtk";
 const char *kDistFile = "dist_2_valley.vtk";
 // const char *kScalarToSmoothFile = "data/gyre_half.vtk";
-const char *kScalarToSmoothFile = "data/output_200.vtk";
+// const char *kScalarToSmoothFile = "data/output_200.vtk";
 // const char *kScalarToSmoothFile = "data/output.vtk";
+const char *kScalarToSmoothFile = "data/bkd_003125.230-binary.vtk";
 const char *kSmoothedScalarFile = "smoothed_scalar.vtk";
 const char *kFilteredBasinFile = "filtered_basin.vtk";
 
@@ -155,7 +157,7 @@ void filter_watershed_test() {
 
   vtkStructuredPoints *filtered_index = NULL;
   extractor.filter_watershed(scalar_field, basin_index, dist_2_valley,
-                             valley_height, 0.01, 0.000015, &filtered_index);
+                             valley_height, 0.1, 0.000015, &filtered_index);
   // gyre_half
   // good height_threshold for 10 / 20 : 0.001, 0.002, 0.003, 0.004, 0.005
   // good height_threshold for 1: 0.0005, 0.001
@@ -165,6 +167,9 @@ void filter_watershed_test() {
 
   // output
   // good height_threshold for 10: 
+
+  // heart
+  // good height_threshold for 10: 1.0
 
   vtkSmartPointer<vtkStructuredPointsWriter> writer =
     vtkSmartPointer<vtkStructuredPointsWriter>::New();
@@ -189,9 +194,9 @@ void filter_watershed_test() {
 }
 
 int main() {
-  // extract_watershed_test();
+  extract_watershed_test();
   // laplacian_smoothing_test();
-  filter_watershed_test();
+  // filter_watershed_test();
 
   return 0;
 }
