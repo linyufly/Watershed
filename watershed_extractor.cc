@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <vtkDoubleArray.h>
+#include <vtkImageData.h>
 #include <vtkIntArray.h>
 #include <vtkPointData.h>
 #include <vtkPoints.h>
@@ -17,7 +18,7 @@
 
 namespace {
 
-const int kConnectivity = 6;
+const int kConnectivity = 26;
 
 const int kDirections[26][3] = {
     {0, 0, 1}, {0, 0, -1},
@@ -776,5 +777,26 @@ void WatershedExtractor::filter_watershed(
   delete_3d_array(scalar_field_array);
   delete_3d_array(basin_index_array);
   delete_3d_array(dist_2_valley_array);
+}
+
+vtkStructuredPoints *WatershedExtractor::image_data_2_structured_points(
+    vtkImageData *image) {
+  int dimensions[3];
+  double origin[3];
+  double spacing[3];
+
+  image->GetDimensions(dimensions);
+  image->GetOrigin(origin);
+  image->GetSpacing(spacing);
+
+  vtkStructuredPoints *structured = vtkStructuredPoints::New();
+
+  structured->SetDimensions(dimensions);
+  structured->SetOrigin(origin);
+  structured->SetSpacing(spacing);
+
+  structured->GetPointData()->SetScalars(image->GetPointData()->GetScalars());
+
+  return structured;
 }
 

@@ -5,12 +5,15 @@
 
 #include <vector>
 
+class vtkImageData;
 class vtkStructuredPoints;
 
 class WatershedExtractor {
  public:
   // This method conducts one iteration of Laplacian smoothing.
   void laplacian_smoothing(double ***scalar_field, int nx, int ny, int nz);
+
+  vtkStructuredPoints *image_data_2_structured_points(vtkImageData *image);
 
   // basin_index stores the index of regions, starting from 0.
   // dist_2_valley stores the steps from the valley (local minima).
