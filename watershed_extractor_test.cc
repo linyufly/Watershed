@@ -165,7 +165,7 @@ void filter_watershed_test() {
 
   vtkStructuredPoints *filtered_index = NULL;
   extractor.filter_watershed(scalar_field, basin_index, dist_2_valley,
-                             valley_height, 0.001, 0.000015, &filtered_index);
+                             valley_height, 0.005, 0.000015, &filtered_index);
   // gyre_half
   // good height_threshold for 10 / 20 : 0.001, 0.002, 0.003, 0.004, 0.005
   // good height_threshold for 1: 0.0005, 0.001

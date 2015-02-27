@@ -1,4 +1,9 @@
+// Author: Mingcheng Chen (linyufly@gmail.com)
+
 #include <cstdio>
+
+#include <algorithm>
+#include <vector>
 
 #include <vtkDataArray.h>
 #include <vtkDoubleArray.h>
@@ -15,7 +20,6 @@
 
 typedef itk::Image<double, 3> ImageType;
 typedef itk::WatershedImageFilter<ImageType> WatershedType;
-// typedef itk::ImageFileWriter<WatershedType::OutputImageType> WriterType;
 
 const char *kScalarFile = "smoothed_scalar.vtk";
 const char *kITKWatershedImageFilterResultFile =
@@ -73,7 +77,33 @@ void watershed_image_filter_test() {
 
   WatershedType::Pointer watershed = WatershedType::New();
   watershed->SetInput(scalar_image);
+  watershed->SetThreshold(0.0);
+  watershed->SetLevel(0.5);
   watershed->Update();
+
+  int last_region = 0;
+  for (int x = 0; x < nx; x++) {
+    for (int y = 0; y < ny; y++) {
+      for (int z = 0; z < nz; z++) {
+        image_index[0] = x;
+        image_index[1] = y;
+        image_index[2] = z;
+
+        int region = static_cast<int>(
+            watershed->GetOutput()->GetPixel(image_index));
+        if (region > last_region) {
+          last_region = region;
+        }
+      }
+    }
+  }
+
+  std::vector<int> renumber(last_region + 1);
+  for (int code = 0; code <= last_region; code++) {
+    renumber[code] = code;
+  }
+
+  random_shuffle(renumber.begin() + 1, renumber.end());
 
   vtkSmartPointer<vtkStructuredPoints> watershed_result =
       vtkSmartPointer<vtkStructuredPoints>::New();
@@ -95,7 +125,8 @@ void watershed_image_filter_test() {
 
         label_array->SetTuple1(
             (z * ny + y) * nx + x,
-            watershed->GetOutput()->GetPixel(image_index));
+            renumber[static_cast<int>(
+                watershed->GetOutput()->GetPixel(image_index))]);
       }
     }
   }
@@ -107,11 +138,6 @@ void watershed_image_filter_test() {
   writer->SetInputData(watershed_result);
   writer->SetFileName(kITKWatershedImageFilterResultFile);
   writer->Write();
-
-  // WriterType::Pointer writer = WriterType::New();
-  // writer->SetFileName("itk_watershed_image_filter_output.itk");
-  // writer->SetInput(watershed->GetOutput());
-  // writer->Update();
 
   printf("} watershed_image_filter_test\n");
   printf("\n");
