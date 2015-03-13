@@ -4,6 +4,8 @@
 
 #include "util.h"
 
+#include <cmath>
+
 #include <algorithm>
 #include <map>
 #include <vector>
@@ -19,6 +21,8 @@
 namespace {
 
 const int kConnectivity = 26;
+const int kLabellingConnectivity = 26;
+const double kZeroTolerance = 1e-8;
 
 const int kDirections[26][3] = {
     {0, 0, 1}, {0, 0, -1},
@@ -151,8 +155,58 @@ void check_waterproof(int ***basin_index, int nx, int ny, int nz) {
   printf("The watershed result is waterproof.\n");
 }
 
-void remove_seams(double ***scalar_field, int nx, int ny, int nz,
-                  int ***basin_index, int ***dist_2_valley) {
+double get_value(double ***scalars, const int *index) {
+  return scalars[index[0]][index[1]][index[2]];
+}
+
+double central_differencing_partial(
+    double ***scalars, const double *spacing, const int *dimensions,
+    const int *index, int component) {
+  int index_1[] = {index[0], index[1], index[2]};
+  int index_2[] = {index[0], index[1], index[2]};
+
+  if (index_1[component] > 0) {
+    index_1[component]--;
+  }
+
+  if (index_2[component] + 1 < dimensions[component]) {
+    index_2[component]++;
+  }
+
+  return (get_value(scalars, index_2)
+         - get_value(scalars, index_1))
+         / (spacing[component] * (index_2[component] - index_1[component]));
+}
+
+double square(double value) {
+  return value * value;
+}
+
+double norm_3d(double *vec) {
+  return sqrt(square(vec[0]) + square(vec[1]) + square(vec[2]));
+}
+
+void normalize_3d(double *coordinates) {
+  double norm = norm_3d(coordinates);
+  if (norm < kZeroTolerance) {
+    coordinates[0] = coordinates[1] = coordinates[2] = 0.0;
+    return;
+  }
+
+  coordinates[0] /= norm;
+  coordinates[1] /= norm;
+  coordinates[2] /= norm;
+}
+
+double dot_product_3d(double *v_1, double *v_2) {
+  return v_1[0] * v_2[0] + v_1[1] * v_2[1] + v_1[2] * v_2[2];
+}
+
+void remove_seams_by_gradients(
+    double ***scalar_field, int nx, int ny, int nz, double *spacing,
+    int ***basin_index, int ***dist_2_valley) {
+  int dimensions[] = {nx, ny, nz};
+
   while (true) {
     bool flag = false;
 
@@ -160,7 +214,57 @@ void remove_seams(double ***scalar_field, int nx, int ny, int nz,
       for (int y = 0; y < ny; y++) {
         for (int z = 0; z < nz; z++) {
           if (basin_index[x][y][z] == -1) {
-            std::map<int, int> labels;
+            double grad[3];
+            int index[] = {x, y, z};
+            for (int component = 0; component < 3; component++) {
+              grad[component] = central_differencing_partial(
+                  scalar_field, spacing, dimensions, index, component);
+            }
+            normalize_3d(grad);
+
+            double max_dot = -2.0;
+            int label = -1;
+
+            for (int k = 0; k < kLabellingConnectivity; k++) {
+              int next_x = x + kDirections[k][0];
+              int next_y = y + kDirections[k][1];
+              int next_z = z + kDirections[k][2];
+
+              if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+                continue;
+              }
+
+              // if (scalar_field[next_x][next_y][next_z]
+              //     > scalar_field[x][y][z]) {
+              //   continue;
+              // }
+
+              if (basin_index[next_x][next_y][next_z] < 0) {
+                continue;
+              }
+
+              int next_index[] = {next_x, next_y, next_z};
+              double next_grad[3];
+              for (int component = 0; component < 3; component++) {
+                next_grad[component] = central_differencing_partial(
+                    scalar_field, spacing, dimensions, next_index, component);
+              }
+              normalize_3d(next_grad);
+              double curr_dot = dot_product_3d(grad, next_grad);
+              if (curr_dot > max_dot) {
+                max_dot = curr_dot;
+                label = basin_index[next_x][next_y][next_z];
+              }
+            }
+
+            if (label == -1) {
+              continue;
+            }
+           
+            // Label the ridge point.
+            basin_index[x][y][z] = -2 - label;
+
+            // Update dist_2_valley.
             for (int k = 0; k < kConnectivity; k++) {
               int next_x = x + kDirections[k][0];
               int next_y = y + kDirections[k][1];
@@ -175,10 +279,85 @@ void remove_seams(double ***scalar_field, int nx, int ny, int nz,
                 continue;
               }
 
+              if (basin_index[next_x][next_y][next_z] != label) {
+                continue;
+              }
+
+              if (dist_2_valley[x][y][z] == -1
+                  || dist_2_valley[x][y][z]
+                     > dist_2_valley[next_x][next_y][next_z] + 1) {
+                dist_2_valley[x][y][z] =
+                    dist_2_valley[next_x][next_y][next_z] + 1;
+              }
+            }
+
+            flag = true;
+          }
+        }
+      }
+    }
+
+    if (!flag) {
+      break;
+    }
+
+    for (int x = 0; x < nx; x++) {
+      for (int y = 0; y < ny; y++) {
+        for (int z = 0; z < nz; z++) {
+          if (basin_index[x][y][z] < -1) {
+            basin_index[x][y][z] = -(basin_index[x][y][z] + 2);
+          }
+        }
+      }
+    }
+  }
+}
+
+void remove_seams(double ***scalar_field, int nx, int ny, int nz,
+                  int ***basin_index, int ***dist_2_valley) {
+  while (true) {
+    bool flag = false;
+
+    for (int x = 0; x < nx; x++) {
+      for (int y = 0; y < ny; y++) {
+        for (int z = 0; z < nz; z++) {
+          /// DEBUG ///
+          bool debug = x == 0 && y == 15 && z == 176;
+
+          if (basin_index[x][y][z] == -1) {
+            std::map<int, int> labels;
+            for (int k = 0; k < kLabellingConnectivity; k++) {
+              int next_x = x + kDirections[k][0];
+              int next_y = y + kDirections[k][1];
+              int next_z = z + kDirections[k][2];
+
+              if (outside(next_x, next_y, next_z, nx, ny, nz)) {
+                continue;
+              }
+
+              /// DEBUG ///
+              // if (debug) {
+              //   printf("next: %d, %d, %d\n", next_x, next_y, next_z);
+              //   printf("scalar_field[next_x][next_y][next_z] = %lf\n",
+              //          scalar_field[next_x][next_y][next_z]);
+              //
+              // }
+
+              if (scalar_field[next_x][next_y][next_z]
+                  > scalar_field[x][y][z]) {
+                continue;
+              }
+
               if (basin_index[next_x][next_y][next_z] >= 0) {
                 labels[basin_index[next_x][next_y][next_z]]++;
               }
             }
+
+            /// DEBUG ///
+            if (debug) {
+              printf("labels.size() = %d\n", static_cast<int>(labels.size()));
+            }
+
             if (labels.empty()) {
               continue;
             }
@@ -271,6 +450,7 @@ void shuffle_labels(int nx, int ny, int nz, int num_labels,
 }
 
 void watershed_process(double ***scalar_field, int nx, int ny, int nz,
+                       double *spacing,
                        int ***basin_index, int ***dist_2_valley,
                        std::vector<double> *valley_height) {
   GridPointData *data_array = new GridPointData[nx * ny * nz];
@@ -454,7 +634,9 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
   /// DEBUG ///
   // check_waterproof(basin_index, nx, ny, nz);  // not necessarily hold
 
-  remove_seams(scalar_field, nx, ny, nz, basin_index, dist_2_valley);
+  remove_seams_by_gradients(scalar_field, nx, ny, nz, spacing,
+                            basin_index, dist_2_valley);
+  // remove_seams(scalar_field, nx, ny, nz, basin_index, dist_2_valley);
 
   shuffle_labels(nx, ny, nz, num_labels, basin_index, valley_height);
 
@@ -467,6 +649,11 @@ void watershed_process(double ***scalar_field, int nx, int ny, int nz,
 }
 
 int find_root(int node, int *father) {
+  /// DEBUG ///
+  if (node < 0) {
+    report_error("Invalid node: %d\n", node);
+  }
+
   if (father[node] == node) {
     return node;
   }
@@ -511,12 +698,25 @@ void merge_watershed(double ***scalar_field,
   for (int x = 0; x < nx; x++) {
     for (int y = 0; y < ny; y++) {
       for (int z = 0; z < nz; z++) {
+        /// DEBUG ///
+        if (basin_index[x][y][z] < 0) {
+          report_error("Invalid index (%d, %d, %d): %d\n",
+                       x, y, z, basin_index[x][y][z]);
+        }
+
         for (int k = 0; k < kConnectivity; k++) {
           int next_x = x + kDirections[k][0];
           int next_y = y + kDirections[k][1];
           int next_z = z + kDirections[k][2];
           if (outside(next_x, next_y, next_z, nx, ny, nz)) {
             continue;
+          }
+
+          /// DEBUG ///
+          if (basin_index[next_x][next_y][next_z] < 0) {
+            report_error("Invalid index2 (%d, %d, %d): %d\n",
+                         next_x, next_y, next_z,
+                         basin_index[next_x][next_y][next_z]);
           }
 
           if (find_root(basin_index[x][y][z], father)
@@ -540,13 +740,13 @@ void merge_watershed(double ***scalar_field,
           //                next_x, next_y, next_z);
           // }
 
-          double quotient_1 =
-              (scalar_field[x][y][z] - valley_height[basin_index[next_x][next_y][next_z]])
-              / (dist_2_valley[next_x][next_y][next_z] + 1);
+          // double quotient_1 =
+          //     (scalar_field[x][y][z] - valley_height[basin_index[next_x][next_y][next_z]])
+          //     / (dist_2_valley[next_x][next_y][next_z] + 1);
 
-          double quotient_2 =
-              (scalar_field[next_x][next_y][next_z] - valley_height[basin_index[x][y][z]])
-              / (dist_2_valley[x][y][z] + 1);
+          // double quotient_2 =
+          //     (scalar_field[next_x][next_y][next_z] - valley_height[basin_index[x][y][z]])
+          //     / (dist_2_valley[x][y][z] + 1);
 
           // if (quotient_1 < quotient_threshold
           //     || quotient_2 < quotient_threshold) {
@@ -562,11 +762,11 @@ void merge_watershed(double ***scalar_field,
               valley_height[basin_index[next_x][next_y][next_z]]);
 
           if (ridge_height - higher_valley_height < height_threshold) {
-            // printf("ridge_height = %lf, higher_valley_height = %lf\n", ridge_height, higher_valley_height);
-            // printf("scalar_field[x][y][z] = %lf, valley_1 = %lf\n",
-            //        scalar_field[x][y][z], valley_height[basin_index[x][y][z]]);
-            // printf("scalar_field[next_x][next_y][next_z] = %lf, valley_2 = %lf\n",
-            //        scalar_field[next_x][next_y][next_z], valley_height[basin_index[next_x][next_y][next_z]]);
+            printf("ridge_height = %lf, higher_valley_height = %lf\n", ridge_height, higher_valley_height);
+            printf("scalar_field[x][y][z] = %lf, valley_1 = %lf\n",
+                   scalar_field[x][y][z], valley_height[basin_index[x][y][z]]);
+            printf("scalar_field[next_x][next_y][next_z] = %lf, valley_2 = %lf\n",
+                   scalar_field[next_x][next_y][next_z], valley_height[basin_index[next_x][next_y][next_z]]);
             merge(basin_index[x][y][z], basin_index[next_x][next_y][next_z],
                   father);
           }
@@ -574,6 +774,9 @@ void merge_watershed(double ***scalar_field,
       }
     }
   }
+
+  /// DEBUG ///
+  printf("Finished merging.\n");
 }
 
 }
@@ -657,7 +860,7 @@ void WatershedExtractor::extract_watershed(
     }
   }
 
-  watershed_process(scalar_field_array, nx, ny, nz,
+  watershed_process(scalar_field_array, nx, ny, nz, spacing,
                     basin_index_array, dist_2_valley_array,
                     valley_height);
 
@@ -759,21 +962,24 @@ void WatershedExtractor::filter_watershed(
     }
   }
 
+  printf("new_num_labels = %d\n", new_num_labels);
+
   *filtered_index = vtkStructuredPoints::New();
   (*filtered_index)->CopyStructure(scalar_field);
-  vtkSmartPointer<vtkIntArray> labels = vtkSmartPointer<vtkIntArray>::New();
+  vtkSmartPointer<vtkDoubleArray> labels = vtkSmartPointer<vtkDoubleArray>::New();
   labels->SetNumberOfComponents(1);
   labels->SetNumberOfTuples(nx * ny * nz);
   for (int i = 0; i < nx * ny * nz; i++) {
     int curr_label = basin_index->GetPointData()->GetScalars()->GetTuple1(i);
     int curr_color = color[find_root(curr_label, father)];
-    labels->SetTuple1(i, curr_color);
+    labels->SetTuple1(i, static_cast<double>(curr_color));
   }
 
   (*filtered_index)->GetPointData()->SetScalars(labels);
 
   delete [] father;
   delete [] color;
+
   delete_3d_array(scalar_field_array);
   delete_3d_array(basin_index_array);
   delete_3d_array(dist_2_valley_array);

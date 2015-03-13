@@ -22,8 +22,12 @@ typedef itk::Image<double, 3> ImageType;
 typedef itk::WatershedImageFilter<ImageType> WatershedType;
 
 const char *kScalarFile = "smoothed_scalar.vtk";
+// const char *kScalarFile = "/home/linyufly/Data/abcflow_200.vtk";
 const char *kITKWatershedImageFilterResultFile =
     "itk_watershed_image_filter_result.vtk";
+
+// const char *kScalarFile = "test_scalar.vtk";
+// const char *kITKWatershedImageFilterResultFile = "test_label.vtk";
 
 void watershed_image_filter_test() {
   printf("watershed_image_filter_test {\n");
@@ -78,7 +82,7 @@ void watershed_image_filter_test() {
   WatershedType::Pointer watershed = WatershedType::New();
   watershed->SetInput(scalar_image);
   watershed->SetThreshold(0.0);
-  watershed->SetLevel(0.5);
+  watershed->SetLevel(0.0);
   watershed->Update();
 
   int last_region = 0;
