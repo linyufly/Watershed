@@ -36,7 +36,8 @@ const char *kScalarToSmoothFile = "/home/linyufly/Data/abcflow_200.vtk";
 // const char *kScalarToSmoothFile = "structured_points.vtk";
 const char *kSmoothedScalarFile = "smoothed_scalar.vtk";
 const char *kFilteredBasinFile = "filtered_basin.vtk";
-const char *kImageDataFile = "../../ExtraStorage/P96_bFTLE/P96_bFTLE.vti";
+// const char *kImageDataFile = "../../ExtraStorage/P96_bFTLE/P96_bFTLE.vti";
+const char *kImageDataFile = "/home/linyufly/Data/P96_bFTLE.vti";
 const char *kStructuredPointsFile = "structured_points.vtk";
 
 const int kNumberOfSmoothing = 10;  // 1 for gyre_half.vtk
@@ -235,8 +236,8 @@ void image_data_2_structured_points_test() {
 int main() {
   // extract_watershed_test();
   // laplacian_smoothing_test();
-  filter_watershed_test();
-  // image_data_2_structured_points_test();
+  // filter_watershed_test();
+  image_data_2_structured_points_test();
 
   return 0;
 }
