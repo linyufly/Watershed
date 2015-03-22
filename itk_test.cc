@@ -21,8 +21,14 @@
 typedef itk::Image<double, 3> ImageType;
 typedef itk::WatershedImageFilter<ImageType> WatershedType;
 
-const char *kScalarFile = "smoothed_scalar.vtk";
+// const char *kScalarFile = "smoothed_scalar.vtk";
+// const char *kScalarFile = "/home/linyufly/Data/P96_bFTLE.vtk";
 // const char *kScalarFile = "/home/linyufly/Data/abcflow_200.vtk";
+// const char *kScalarFile = "/home/linyufly/GitHub/Playground/masked.vtk";
+// const char *kScalarFile = "/home/linyufly/GitHub/Playground/cropped_convective_half.vtk";
+// const char *kScalarFile = "/home/linyufly/GitHub/Playground/symmetrical_convective_half.vtk";
+const char *kScalarFile = "/home/linyufly/Data/symmetrical_convective_half.vtk";
+
 const char *kITKWatershedImageFilterResultFile =
     "itk_watershed_image_filter_result.vtk";
 
@@ -69,10 +75,12 @@ void watershed_image_filter_test() {
         image_index[1] = y;
         image_index[2] = z;
 
-        scalar_image->SetPixel(
-            image_index, scalar_field->GetPointData()
+        double value = scalar_field->GetPointData()
                                      ->GetScalars()
-                                     ->GetTuple1((z * ny + y) * nx + x));
+                                     ->GetTuple1((z * ny + y) * nx + x);
+
+        scalar_image->SetPixel(
+            image_index, value);
       }
     }
   }
@@ -82,7 +90,7 @@ void watershed_image_filter_test() {
   WatershedType::Pointer watershed = WatershedType::New();
   watershed->SetInput(scalar_image);
   watershed->SetThreshold(0.0);
-  watershed->SetLevel(0.0);
+  watershed->SetLevel(0.1);  // 0.2
   watershed->Update();
 
   int last_region = 0;
